@@ -1,0 +1,22 @@
+{
+  "name": "examples",
+  "version": "1.0.0",
+  "description": "A repo containing different examples that you can use to get started with EXM",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/exmbuild/examples.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/exmbuild/examples/issues"
+  },
+  "homepage": "https://github.com/exmbuild/examples#readme",
+  "dependencies": {
+    "@execution-machine/sdk": "^0.1.33"
+  }
+}

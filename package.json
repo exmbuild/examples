@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/exmbuild/examples#readme",
   "dependencies": {
-    "@execution-machine/sdk": "^0.1.33"
+    "@execution-machine/sdk": "^0.1.35"
   }
 }

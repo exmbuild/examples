@@ -4,7 +4,7 @@
   "description": "A repo containing different examples that you can use to get started with EXM",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test:bundlr-upload": "cd bundlr-upload && node test.js"
   },
   "repository": {
     "type": "git",
@@ -17,6 +17,6 @@
   },
   "homepage": "https://github.com/exmbuild/examples#readme",
   "dependencies": {
-    "@execution-machine/sdk": "^0.1.35"
+    "@execution-machine/sdk": "^0.1.42"
   }
 }

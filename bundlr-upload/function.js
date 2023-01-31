@@ -6,6 +6,57 @@ function byteArrayToLong(byteArray) {
     return value;
 }
 
+function encodeLong(n) {
+    let buf = new Uint8Array(0);
+    let f, m;
+    let offset = 0;
+
+    if (n >= -1073741824 && n < 1073741824) {
+        // Won't overflow, we can use integer arithmetic.
+        m = n >= 0 ? n << 1 : (~n << 1) | 1;
+        do {
+            buf = ArweaveUtils.concatBuffers([buf, new Uint8Array(1)]);
+            buf[offset] = m & 0x7f;
+            m >>= 7;
+        } while (m && (buf[offset++] |= 0x80));
+    } else {
+        // We have to use slower floating arithmetic.
+        f = n >= 0 ? n * 2 : -n * 2 - 1;
+        do {
+            buf = ArweaveUtils.concatBuffers([buf, new Uint8Array(1)]);
+            buf[offset] = f & 0x7f;
+            f /= 128;
+        } while (f >= 1 && (buf[offset++] |= 0x80));
+    }
+    return buf;
+}
+
+
+function serializeTags(tags) {
+    const encoder = new TextEncoder();
+    let byt = encoder.encode("");
+    if (!tags) return byt;
+    // number of tags
+    byt = ArweaveUtils.concatBuffers([byt, encodeLong(tags.length)]);
+    for (const tag of tags) {
+        if (!tag?.name || !tag?.value)
+            throw new Error(
+                `Invalid tag format for ${tag}, expected {name:string, value: string}`,
+            );
+        const name = encoder.encode(tag.name);
+        const value = encoder.encode(tag.value);
+        // encode the length of the field using variable integer encoding
+        byt = ArweaveUtils.concatBuffers([byt, encodeLong(name.byteLength)]);
+        // then the value
+        byt = ArweaveUtils.concatBuffers([byt, name]);
+        byt = ArweaveUtils.concatBuffers([byt, encodeLong(value.byteLength)]);
+        byt = ArweaveUtils.concatBuffers([byt, value]);
+    }
+    // 0 terminator
+    byt = ArweaveUtils.concatBuffers([byt, encodeLong(0)]);
+    return byt;
+}
+
 async function deepHash(data) {
     const Arweave = {
         utils: ArweaveUtils,
@@ -148,10 +199,9 @@ function createData(data, signer, opts) {
     const target_length = 1 + (_target?.byteLength ?? 0);
     const _anchor = opts?.anchor ? new Uint8Array(opts.anchor) : null;
     const anchor_length = 1 + (_anchor?.byteLength ?? 0);
-    const _tags = null;
+    const _tags = (opts?.tags?.length ?? 0) > 0 ? serializeTags(opts.tags) : null;
     const tags_length = 16 + (_tags ? _tags.byteLength : 0);
-    const _data =
-        typeof data === "string" ? encoder.encode(data) : encoder.encode(JSON.stringify(data));
+    const _data = data;
     const data_length = _data.byteLength;
 
     // See [https://github.com/joshbenaron/arweave-standards/blob/ans104/ans/ANS-104.md#13-dataitem-format]
@@ -227,7 +277,7 @@ async function sign(item, signer) {
     return [id, raw];
 }
 
-const createBodyData = (data, jwk) => createData(data, {
+const createBodyData = (data, jwk, opts) => createData(data, {
     publicKey: ArweaveUtils.b64UrlToBuffer(jwk.n),
     signatureType: 1,
     signatureLength: 512,
@@ -235,10 +285,11 @@ const createBodyData = (data, jwk) => createData(data, {
     sign(message) {
         return SmartWeave.arweave.crypto.sign(jwk, message);
     }
-});
+}, opts);
 
-
+// action.input = { data, type: "buffer", tags }
 export async function handle(state, action) {
+    const encoder = new TextEncoder();
     const targetStart = 2 + 512 + 512;
     try {
         const jwk = {
@@ -253,9 +304,30 @@ export async function handle(state, action) {
             qi: 'WA7rs38z_LZad6SFGJNUblyuJ-W7zFkFtHqh8_ToUVbS6wuNLbmsOr5_AsOWKWKils2eHWj5bA4Io5SajWl499JgGLS7nMwhn1gSzIfYskoHCl4_isEu7mB2uOWqPtSt6xYvCaxutyTQSbaUj9ioOsOU5Gjt-Vuigm3M5rmQS6Kli1rPgs1boYj8NPtou21SwrHXZnsfA2J7QqzDddhhLdd8U85_H4eFygiSwYbnnIkMSciWt6CAviPve-MeQMIKKtATjIUspUzBlbCuHR7WaMqyVvYfCRhsDg8WaRIsgebz4qSUwzuy-Lip8EFXcMbzocjP5JHE4eKFm5H9Iq0V5Q'
         };
 
-        const data = action.input.data || null;
+        const input = action.input;
+        const data = input.data || null;
+        const type = (input.type || "buffer").toLowerCase();
+        let bufferData = null;
+
+        switch (type) {
+            case "string":
+                if(typeof data !== 'string') {
+                    throw new Error("Provided `data` is not a string but type is");
+                }
+                bufferData = encoder.encode(data);
+            break;
+            case "buffer":
+                if(!Array.isArray(data)) {
+                    throw new Error('A type `buffer` requires an array of numbers representing the bytes that the buffer contains.');
+                }
+                bufferData = new Uint8Array(data);
+            break;
+        }
+
         if (data) {
-            const body = createBodyData(data, jwk);
+            const body = createBodyData(bufferData, jwk, {
+                tags: input.tags
+            });
 
             const getTagsStart = () => {
                 const targetPresent = body[targetStart] == 1;
@@ -319,9 +391,14 @@ export async function handle(state, action) {
                 body: signedBody
             });
 
+            const uploadId = await upload.asJSON().id;
+
+            state.items.push(uploadId)
+
             return {
+                state,
                 result: {
-                    id: await upload.asJSON().id
+                    id: uploadId
                 }
             }
 

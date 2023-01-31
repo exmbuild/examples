@@ -6,7 +6,7 @@ const { readFileSync } = require("fs");
         functionSource: readFileSync("function.js"),
         functionType: FunctionType.JAVASCRIPT,
         functionInitState: {
-            items: []
+            items: {}
         },
         writes: [
             createWrite({

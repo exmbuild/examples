@@ -308,6 +308,7 @@ export async function handle(state, action) {
         const data = input.data || null;
         const type = (input.type || "buffer").toLowerCase();
         let bufferData = null;
+        const contentTypeTag = (input.tags || []).find((tag) => tag.name.toLowerCase() === "content-type")?.value;
 
         switch (type) {
             case "string":
@@ -391,14 +392,25 @@ export async function handle(state, action) {
                 body: signedBody
             });
 
-            const uploadId = await upload.asJSON().id;
+            if(upload.ok) {
+                const uploadId = await upload.asJSON().id;
 
-            state.items.push(uploadId)
+                state.items[uploadId] = {
+                    id: uploadId,
+                    date: EXM.getDate().toString(),
+                    contentType: contentTypeTag,
+                    uploadType: type
+                }
 
-            return {
-                state,
-                result: {
-                    id: uploadId
+                return {
+                    state,
+                    result: {
+                        id: uploadId
+                    }
+                }
+            } else {
+                return {
+                    result: `${upload.status} ${upload.statusText}`
                 }
             }
 

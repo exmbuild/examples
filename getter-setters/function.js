@@ -1,4 +1,4 @@
-export async const handle = (state, action) => {
+export const handle = (state, action) => {
     const fn = action.input.fn;
     if(fn === "SET_ADMIN_NAME") {
         state.adminName = action.input.newAdminName;
